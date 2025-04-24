@@ -1,0 +1,113 @@
+import os
+import sqlite3
+import sys
+from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+                             QLabel, QTextEdit, QPushButton, QTableWidget,
+                             QTableWidgetItem, QHeaderView, QMessageBox,
+                             QInputDialog)
+
+con = sqlite3.connect("test.db")
+cursor = con.cursor()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT,
+        priority INTEGER
+    )
+""")
+
+def setup_ui():
+    window = QWidget()
+    window.setWindowTitle("Приложение для Заметок")
+    window.setGeometry(100, 100, 1000, 500)
+
+    main_layout = QVBoxLayout()
+
+    table = QTableWidget()
+    table.setColumnCount(4)
+    table.setHorizontalHeaderLabels(["ID", "Note", "Prioritet", "Удаление"])
+    table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+    table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+    table.setColumnWidth(0, 80)
+    table.setColumnWidth(3, 100)
+    table.verticalHeader().setVisible(False)
+
+    main_layout.addWidget(table)
+
+    buttons_layout = QHBoxLayout()
+
+    add_button = QPushButton("Добавление")
+    buttons_layout.addWidget(add_button)
+
+    edit_button = QPushButton("Изменение")
+    buttons_layout.addWidget(edit_button)
+
+    display_button = QPushButton("Отображение")
+    buttons_layout.addWidget(display_button)
+
+    main_layout.addLayout(buttons_layout)
+    window.setLayout(main_layout)
+
+    def add_table_row(id, note, priority):
+        row_position = table.rowCount()
+        table.insertRow(row_position)
+
+        table.setItem(row_position, 0, QTableWidgetItem(str(id)))
+        table.setItem(row_position, 1, QTableWidgetItem(note))
+        table.setItem(row_position, 2, QTableWidgetItem(str(priority)))
+
+        delete_btn = QPushButton("Удалить")
+        delete_btn.clicked.connect(lambda: delete_row(row_position))
+        table.setCellWidget(row_position, 3, delete_btn)
+
+    def delete_row(row):
+        note_id = table.item(row, 0).text()
+        cursor.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        con.commit()
+        load_notes()
+
+    def load_notes():
+        table.setRowCount(0)
+        cursor.execute("SELECT * FROM notes")
+        notes = cursor.fetchall()
+        for note in notes:
+            add_table_row(note[0], note[1], note[2])
+
+    def add_note():
+        text, ok = QInputDialog.getText(window, "Добавить заметку", "Введите текст заметки:")
+        if ok and text:
+            priority, ok = QInputDialog.getInt(window, "Приоритет", "Введите приоритет (1-5):", 1, 1, 5)
+            if ok:
+                cursor.execute("INSERT INTO notes (text, priority) VALUES (?, ?)", (text, priority))
+                con.commit()
+                load_notes()
+
+    def edit_note():
+        selected = table.currentRow()
+        if selected == -1:
+            QMessageBox.warning(window, "Ошибка", "Выберите заметку для редактирования.")
+            return
+
+        note_id = int(table.item(selected, 0).text())
+        old_text = table.item(selected, 1).text()
+        old_priority = int(table.item(selected, 2).text())
+
+        text, ok = QInputDialog.getText(window, "Редактировать заметку", "Введите новый текст заметки:", text=old_text)
+        if ok and text:
+            priority, ok = QInputDialog.getInt(window, "Приоритет", "Введите новый приоритет (1-5):", old_priority, 1, 5)
+            if ok:
+                cursor.execute("UPDATE notes SET text = ?, priority = ? WHERE id = ?", (text, priority, note_id))
+                con.commit()
+                load_notes()
+
+    add_button.clicked.connect(add_note)
+    edit_button.clicked.connect(edit_note)
+    display_button.clicked.connect(load_notes)
+
+    return window
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    todo_app = setup_ui()
+    todo_app.show()
+    sys.exit(app.exec_())
