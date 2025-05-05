@@ -1,113 +1,235 @@
-import os
 import sqlite3
-import sys
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLabel, QTextEdit, QPushButton, QTableWidget,
-                             QTableWidgetItem, QHeaderView, QMessageBox,
-                             QInputDialog)
+from tkinter import *
+from tkinter import ttk
+from tkinter import messagebox
+from tkinter.font import Font
 
-con = sqlite3.connect("test.db")
-cursor = con.cursor()
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS notes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        text TEXT,
-        priority INTEGER
-    )
-""")
 
-def setup_ui():
-    window = QWidget()
-    window.setWindowTitle("Приложение для Заметок")
-    window.setGeometry(100, 100, 1000, 500)
+conn = sqlite3.connect('notes.db')
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS notes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    note TEXT, 
+                    priority INTEGER)''')
 
-    main_layout = QVBoxLayout()
 
-    table = QTableWidget()
-    table.setColumnCount(4)
-    table.setHorizontalHeaderLabels(["ID", "Note", "Prioritet", "Удаление"])
-    table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-    table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-    table.setColumnWidth(0, 80)
-    table.setColumnWidth(3, 100)
-    table.verticalHeader().setVisible(False)
+PRIORITY_NAMES = {
+    0: "Отсутствует",
+    1: "Низкий",
+    2: "Средний",
+    3: "Высокий"
+}
 
-    main_layout.addWidget(table)
+PRIORITY_COLORS = {
+    0: "#f0f0f0",  # серый
+    1: "#d4edda",  # светло-зеленый
+    2: "#fff3cd",  # светло-желтый
+    3: "#f8d7da"   # светло-красный
+}
 
-    buttons_layout = QHBoxLayout()
 
-    add_button = QPushButton("Добавление")
-    buttons_layout.addWidget(add_button)
+root = Tk()
+root.title("Менеджер заметок")
+root.geometry('800x600')
+root.configure(bg='#f5f5f5')
 
-    edit_button = QPushButton("Изменение")
-    buttons_layout.addWidget(edit_button)
 
-    display_button = QPushButton("Отображение")
-    buttons_layout.addWidget(display_button)
+title_font = Font(family="Arial", size=12, weight="bold")
+button_font = Font(family="Arial", size=10)
 
-    main_layout.addLayout(buttons_layout)
-    window.setLayout(main_layout)
 
-    def add_table_row(id, note, priority):
-        row_position = table.rowCount()
-        table.insertRow(row_position)
+header_frame = Frame(root, bg='#343a40', padx=10, pady=10)
+header_frame.pack(fill=X)
 
-        table.setItem(row_position, 0, QTableWidgetItem(str(id)))
-        table.setItem(row_position, 1, QTableWidgetItem(note))
-        table.setItem(row_position, 2, QTableWidgetItem(str(priority)))
+input_frame = Frame(root, bg='#f5f5f5', padx=10, pady=10)
+input_frame.pack(fill=X)
 
-        delete_btn = QPushButton("Удалить")
-        delete_btn.clicked.connect(lambda: delete_row(row_position))
-        table.setCellWidget(row_position, 3, delete_btn)
+button_frame = Frame(root, bg='#f5f5f5', padx=10, pady=5)
+button_frame.pack(fill=X)
 
-    def delete_row(row):
-        note_id = table.item(row, 0).text()
-        cursor.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-        con.commit()
-        load_notes()
+table_frame = Frame(root, bg='#f5f5f5', padx=10, pady=10)
+table_frame.pack(fill=BOTH, expand=True)
 
-    def load_notes():
-        table.setRowCount(0)
-        cursor.execute("SELECT * FROM notes")
-        notes = cursor.fetchall()
-        for note in notes:
-            add_table_row(note[0], note[1], note[2])
 
-    def add_note():
-        text, ok = QInputDialog.getText(window, "Добавить заметку", "Введите текст заметки:")
-        if ok and text:
-            priority, ok = QInputDialog.getInt(window, "Приоритет", "Введите приоритет (1-5):", 1, 1, 5)
-            if ok:
-                cursor.execute("INSERT INTO notes (text, priority) VALUES (?, ?)", (text, priority))
-                con.commit()
-                load_notes()
+Label(header_frame,
+      text="Менеджер заметок с приоритетами",
+      font=title_font,
+      fg='white',
+      bg='#343a40').pack(side=LEFT)
 
-    def edit_note():
-        selected = table.currentRow()
-        if selected == -1:
-            QMessageBox.warning(window, "Ошибка", "Выберите заметку для редактирования.")
-            return
 
-        note_id = int(table.item(selected, 0).text())
-        old_text = table.item(selected, 1).text()
-        old_priority = int(table.item(selected, 2).text())
+Label(input_frame,
+      text="Текст заметки:",
+      bg='#f5f5f5').grid(row=0, column=0, padx=5, pady=5, sticky=W)
 
-        text, ok = QInputDialog.getText(window, "Редактировать заметку", "Введите новый текст заметки:", text=old_text)
-        if ok and text:
-            priority, ok = QInputDialog.getInt(window, "Приоритет", "Введите новый приоритет (1-5):", old_priority, 1, 5)
-            if ok:
-                cursor.execute("UPDATE notes SET text = ?, priority = ? WHERE id = ?", (text, priority, note_id))
-                con.commit()
-                load_notes()
+note_entry = Entry(input_frame, width=50, font=('Arial', 11))
+note_entry.grid(row=0, column=1, padx=5, pady=5, sticky=W)
 
-    add_button.clicked.connect(add_note)
-    edit_button.clicked.connect(edit_note)
-    display_button.clicked.connect(load_notes)
+Label(input_frame,
+      text="Приоритет:",
+      bg='#f5f5f5').grid(row=1, column=0, padx=5, pady=5, sticky=W)
 
-    return window
+priority_var = IntVar(value=1)
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    todo_app = setup_ui()
-    todo_app.show()
-    sys.exit(app.exec_())
+priority_frame = Frame(input_frame, bg='#f5f5f5')
+priority_frame.grid(row=1, column=1, padx=5, pady=5, sticky=W)
+
+
+for text, value in [(PRIORITY_NAMES[0], 0), (PRIORITY_NAMES[1], 1),
+                    (PRIORITY_NAMES[2], 2), (PRIORITY_NAMES[3], 3)]:
+    Radiobutton(priority_frame,
+                text=text,
+                variable=priority_var,
+                value=value,
+                bg='#f5f5f5',
+                activebackground='#f5f5f5').pack(side=LEFT, padx=5)
+
+
+def create_button(frame, text, command, color):
+    return Button(frame,
+                 text=text,
+                 command=command,
+                 bg=color,
+                 fg='white',
+                 font=button_font,
+                 relief=FLAT,
+                 padx=10)
+
+add_button = create_button(button_frame, "Добавить", lambda: add_note(), '#28a745')
+update_button = create_button(button_frame, "Обновить", lambda: update_note(), '#ffc107')
+delete_button = create_button(button_frame, "Удалить", lambda: delete_note(), '#dc3545')
+refresh_button = create_button(button_frame, "Обновить список", lambda: show_notes(), '#17a2b8')
+
+add_button.pack(side=LEFT, padx=5)
+update_button.pack(side=LEFT, padx=5)
+delete_button.pack(side=LEFT, padx=5)
+refresh_button.pack(side=LEFT, padx=5)
+
+
+tree = ttk.Treeview(table_frame,
+                   columns=("ID", "Note", "Priority"),
+                   show="headings",
+                   selectmode="browse")
+
+vsb = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
+hsb = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview)
+tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
+tree.grid(row=0, column=0, sticky="nsew")
+vsb.grid(row=0, column=1, sticky="ns")
+hsb.grid(row=1, column=0, sticky="ew")
+
+table_frame.grid_rowconfigure(0, weight=1)
+table_frame.grid_columnconfigure(0, weight=1)
+
+
+tree.heading("ID", text="ID", anchor=CENTER)
+tree.heading("Note", text="Заметка", anchor=CENTER)
+tree.heading("Priority", text="Приоритет", anchor=CENTER)
+
+tree.column("ID", width=50, anchor=CENTER)
+tree.column("Note", width=400, anchor=W)
+tree.column("Priority", width=100, anchor=CENTER)
+
+
+style = ttk.Style()
+style.theme_use("clam")
+style.configure("Treeview",
+                background="#ffffff",
+                fieldbackground="#ffffff",
+                foreground="#000000",
+                rowheight=25)
+style.configure("Treeview.Heading",
+                background="#343a40",
+                foreground="white",
+                font=('Arial', 10, 'bold'))
+style.map("Treeview", background=[('selected', '#007bff')])
+
+
+def show_notes():
+    """Отображает все заметки в таблице"""
+    for row in tree.get_children():
+        tree.delete(row)
+
+    cursor.execute("SELECT * FROM notes ORDER BY priority DESC, id ASC")
+    rows = cursor.fetchall()
+
+    for row in rows:
+        priority_name = PRIORITY_NAMES.get(row[2], "Неизвестно")
+        tree.insert("", "end", values=(row[0], row[1], priority_name), tags=(row[2],))
+        tree.tag_configure(row[2], background=PRIORITY_COLORS.get(row[2], "#ffffff"))
+
+def add_note():
+    """Добавляет новую заметку"""
+    note_text = note_entry.get()
+    priority_value = priority_var.get()
+
+    if note_text:
+        try:
+            cursor.execute("INSERT INTO notes (note, priority) VALUES (?, ?)",
+                           (note_text, priority_value))
+            conn.commit()
+            show_notes()
+            note_entry.delete(0, END)
+        except sqlite3.Error as e:
+            messagebox.showerror("Ошибка", f"Ошибка базы данных: {e}")
+    else:
+        messagebox.showwarning("Предупреждение", "Введите текст заметки")
+
+def update_note():
+    """Обновляет выбранную заметку"""
+    selected_item = tree.selection()
+    if selected_item:
+        item = tree.item(selected_item)
+        note_id = item['values'][0]
+        note_text = note_entry.get()
+        priority_value = priority_var.get()
+
+        if note_text:
+            cursor.execute("UPDATE notes SET note=?, priority=? WHERE id=?",
+                           (note_text, priority_value, note_id))
+            conn.commit()
+            show_notes()
+            note_entry.delete(0, END)
+        else:
+            messagebox.showwarning("Предупреждение", "Введите текст заметки")
+    else:
+        messagebox.showwarning("Предупреждение", "Выберите заметку для обновления")
+
+def delete_note():
+    """Удаляет выбранную заметку"""
+    selected_item = tree.selection()
+    if selected_item:
+        if messagebox.askyesno("Подтверждение", "Удалить выбранную заметку?"):
+            item = tree.item(selected_item)
+            note_id = item['values'][0]
+
+            cursor.execute("DELETE FROM notes WHERE id=?", (note_id,))
+            conn.commit()
+            show_notes()
+            note_entry.delete(0, END)
+    else:
+        messagebox.showwarning("Предупреждение", "Выберите заметку для удаления")
+
+def on_tree_select(event):
+    """Обработчик выбора строки в таблице"""
+    selected_item = tree.selection()
+    if selected_item:
+        item = tree.item(selected_item)
+        note_entry.delete(0, END)
+        note_entry.insert(0, item['values'][1])
+
+        for priority, name in PRIORITY_NAMES.items():
+            if name == item['values'][2]:
+                priority_var.set(priority)
+                break
+
+
+tree.bind('<<TreeviewSelect>>', on_tree_select)
+
+
+show_notes()
+
+
+root.mainloop()
+conn.close()
